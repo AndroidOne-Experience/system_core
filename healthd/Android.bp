@@ -32,6 +32,7 @@ cc_defaults {
     ],
 
     static_libs: [
+        "libbootloader_message",
         "libcharger_sysprop",
         "libhealthd_draw",
         "libhealthloop",
@@ -247,7 +248,9 @@ cc_defaults {
         "android.hardware.health@1.0-convert",
         "android.hardware.health-V4-ndk",
         "libbatterymonitor",
+        "libbootloader_message",
         "libcharger_sysprop",
+        "libfstab",
         "libhealthd_charger_nops",
         "libhealthloop",
         "libhealth2impl",

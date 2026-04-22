@@ -36,6 +36,7 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/strings.h>
+#include <bootloader_message/bootloader_message.h>
 
 #include <linux/netlink.h>
 #include <sys/socket.h>
@@ -158,6 +159,31 @@ static const animation BASE_ANIMATION = {
     .cur_level = 0,
     .cur_status = BATTERY_STATUS_UNKNOWN,
 };
+
+// Some bootloaders still report charger mode while a recovery reboot is pending.
+// Honor the BCB request so recovery-based OTAs don't get stuck in charger mode.
+static bool RecoveryBootRequested() {
+    bootloader_message boot = {};
+    std::string err;
+    if (!read_bootloader_message(&boot, &err)) {
+        LOGW("failed to read bootloader message: %s\n", err.c_str());
+        return false;
+    }
+
+    const auto command = std::string(boot.command, strnlen(boot.command, sizeof(boot.command)));
+    if (command != "boot-recovery") {
+        return false;
+    }
+
+    const auto recovery =
+            std::string(boot.recovery, strnlen(boot.recovery, sizeof(boot.recovery)));
+    if (!android::base::StartsWith(recovery, "recovery")) {
+        LOGW("ignoring malformed recovery bootloader message in charger mode\n");
+        return false;
+    }
+
+    return true;
+}
 
 void Charger::InitDefaultAnimationFrames() {
     owned_frames_ = {
@@ -775,6 +801,11 @@ void Charger::OnInit(struct healthd_config* config) {
     dump_last_kmsg();
 
     LOGW("--------------- STARTING CHARGER MODE ---------------\n");
+
+    if (RecoveryBootRequested()) {
+        LOGW("pending recovery boot detected, leaving charger mode\n");
+        property_set("sys.boot_from_charger_mode", "1");
+    }
 
     ret = ev_init(
             std::bind(&Charger::InputCallback, this, std::placeholders::_1, std::placeholders::_2));
