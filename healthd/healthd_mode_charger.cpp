@@ -42,6 +42,7 @@
 #include <sys/socket.h>
 
 #include <cutils/android_get_control_file.h>
+#include <cutils/android_reboot.h>
 #include <cutils/klog.h>
 #include <cutils/misc.h>
 #include <cutils/properties.h>
@@ -803,8 +804,11 @@ void Charger::OnInit(struct healthd_config* config) {
     LOGW("--------------- STARTING CHARGER MODE ---------------\n");
 
     if (RecoveryBootRequested()) {
-        LOGW("pending recovery boot detected, leaving charger mode\n");
-        property_set("sys.boot_from_charger_mode", "1");
+        LOGW("pending recovery boot detected, rebooting to recovery\n");
+        if (android_reboot(ANDROID_RB_RESTART2, 0, "recovery") == -1) {
+            LOGW("failed to reboot to recovery for pending recovery boot: %s\n",
+                 strerror(errno));
+        }
     }
 
     ret = ev_init(
